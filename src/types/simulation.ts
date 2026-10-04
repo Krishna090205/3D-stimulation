@@ -27,7 +27,7 @@ export interface DroneEntity {
   rfFrequency: string; // e.g. "2.4 GHz", "5.8 GHz", "433 MHz"
 }
 
-export type WeaponType = 'RF_JAMMER' | 'SHOTGUN' | 'NET_GUN';
+export type WeaponType = 'SHOTGUN' | 'NET_GUN' | 'SNIPER' | 'RF_JAMMER';
 
 export interface WeaponState {
   type: WeaponType;
@@ -109,7 +109,7 @@ export interface SessionResult {
 
 export interface Projectile {
   id: string;
-  type: 'PELLET' | 'NET';
+  type: 'PELLET' | 'NET' | 'SNIPER_BULLET';
   position: THREE.Vector3;
   velocity: THREE.Vector3;
   lifetime: number; // in seconds

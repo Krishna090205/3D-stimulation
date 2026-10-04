@@ -10,8 +10,9 @@ export interface BallisticHitResult {
   damage: number;
   isNeutralized: boolean;
   hitPosition: THREE.Vector3;
-  weaponType: 'SHOTGUN' | 'NET_GUN';
+  weaponType: 'SHOTGUN' | 'NET_GUN' | 'SNIPER';
 }
+
 
 export class BallisticsEngine {
   private projectiles: Projectile[] = [];
@@ -76,6 +77,26 @@ export class BallisticsEngine {
   }
 
   /**
+   * Fires a High-Caliber Anti-Materiel Sniper round: Supersonic, near-flat trajectory, devastating impact
+   */
+  public fireSniper(origin: THREE.Vector3, direction: THREE.Vector3): Projectile {
+    const speed = 850; // m/s supersonic muzzle velocity
+    const vel = direction.clone().normalize().multiplyScalar(speed);
+
+    const proj: Projectile = {
+      id: `sniper-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      type: 'SNIPER_BULLET',
+      position: origin.clone(),
+      velocity: vel,
+      lifetime: 2.2, // ~1800m extreme range
+      spreadFactor: 0.001
+    };
+
+    this.projectiles.push(proj);
+    return proj;
+  }
+
+  /**
    * Physics Integration & Hit-Scan Collision Detection against 3D Drones
    */
   public update(deltaSeconds: number, drones: DroneEntity[]): BallisticHitResult[] {
@@ -96,6 +117,8 @@ export class BallisticsEngine {
         p.velocity.addScaledVector(gravity, deltaSeconds * 1.8);
         p.velocity.multiplyScalar(Math.pow(0.96, deltaSeconds * 60)); // Air resistance
         p.netScale = Math.min(4.8, (p.netScale || 0.4) + deltaSeconds * 3.5); // Expanding net diameter
+      } else if (p.type === 'SNIPER_BULLET') {
+        p.velocity.addScaledVector(gravity, deltaSeconds * 0.12); // Extremely flat supersonic flight
       } else {
         p.velocity.addScaledVector(gravity, deltaSeconds * 0.4); // Pellets drop slightly
       }
@@ -153,6 +176,28 @@ export class BallisticsEngine {
                 hitPosition: closestPoint,
                 weaponType: 'NET_GUN'
               });
+            } else if (p.type === 'SNIPER_BULLET') {
+              // High-velocity armor piercing sniper impact: Devastating direct kinetic damage
+              damage = 100;
+              drone.health = 0;
+              drone.state = 'FALLING';
+              drone.velocity.y = -14;
+              drone.velocity.x += (Math.random() - 0.5) * 8;
+              drone.velocity.z += (Math.random() - 0.5) * 8;
+              drone.angularVelocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 22,
+                (Math.random() - 0.5) * 12,
+                (Math.random() - 0.5) * 22
+              );
+              neutralized = true;
+
+              hits.push({
+                hitDroneId: drone.id,
+                damage,
+                isNeutralized: neutralized,
+                hitPosition: closestPoint,
+                weaponType: 'SNIPER'
+              });
             } else {
               // Shotgun pellet impact
               damage = 28 + Math.random() * 12;
@@ -181,6 +226,7 @@ export class BallisticsEngine {
             }
 
             break; // Stop checking other drones for this projectile
+
           }
         }
       }

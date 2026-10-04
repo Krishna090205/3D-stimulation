@@ -159,8 +159,9 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rfHeatmapCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Arsenal state
-  const [currentWeapon, setCurrentWeapon] = useState<WeaponType>('RF_JAMMER');
+  // Arsenal state - Default to SHOTGUN on simulation start
+  const [currentWeapon, setCurrentWeapon] = useState<WeaponType>('SHOTGUN');
+  const currentWeaponRef = useRef<WeaponType>('SHOTGUN');
   const [isJammingActive, setIsJammingActive] = useState<boolean>(false);
   const [activeSensorView, setActiveSensorView] = useState<'RF' | 'RADAR' | 'EO_IR'>('RF');
   const [eoIrMode, setEoIrMode] = useState<'Visual' | 'Thermal'>('Thermal');
@@ -173,19 +174,10 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
 
   // Weapons State
   const [weapons, setWeapons] = useState<Record<WeaponType, WeaponState>>({
-    RF_JAMMER: {
-      type: 'RF_JAMMER',
-      name: 'RF Jammer',
-      ammo: 5,
-      maxAmmo: 30,
-      isReloading: false,
-      cooldown: 0,
-      effectiveRange: 380
-    },
     SHOTGUN: {
       type: 'SHOTGUN',
-      name: 'Shotgun',
-      ammo: 5,
+      name: 'Tactical Shotgun',
+      ammo: 8,
       maxAmmo: 8,
       isReloading: false,
       cooldown: 0,
@@ -193,14 +185,45 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
     },
     NET_GUN: {
       type: 'NET_GUN',
-      name: 'Net Gun',
+      name: 'Net Trap Gun',
       ammo: 3,
       maxAmmo: 3,
       isReloading: false,
       cooldown: 0,
       effectiveRange: 90
+    },
+    SNIPER: {
+      type: 'SNIPER',
+      name: 'C-UAS Sniper Rifle',
+      ammo: 5,
+      maxAmmo: 5,
+      isReloading: false,
+      cooldown: 0,
+      effectiveRange: 750
+    },
+    RF_JAMMER: {
+      type: 'RF_JAMMER',
+      name: 'RF Jammer',
+      ammo: 30,
+      maxAmmo: 30,
+      isReloading: false,
+      cooldown: 0,
+      effectiveRange: 380
     }
   });
+
+  // Keep ref in sync for render loops
+  useEffect(() => {
+    currentWeaponRef.current = currentWeapon;
+  }, [currentWeapon]);
+
+  // Player FPS Movement & Physics References (WASD, Sprint, Jump, Crouch)
+  const keysPressedRef = useRef<{ [code: string]: boolean }>({});
+  const playerVelRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const jumpVelYRef = useRef<number>(0);
+  const isGroundedRef = useRef<boolean>(true);
+  const walkCycleRef = useRef<number>(0);
+
 
   // Active Drones State
   const dronesRef = useRef<DroneEntity[]>([]);
@@ -345,15 +368,15 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
     smokeParticlesRef.current.push({ mesh, vel, life: 1.2, maxLife: 1.2 });
   }, []);
 
-  const spawnBulletTracer = useCallback((origin: THREE.Vector3, direction: THREE.Vector3, maxDist: number = 260) => {
+  const spawnBulletTracer = useCallback((origin: THREE.Vector3, direction: THREE.Vector3, maxDist: number = 260, colorHex: number = 0xfbbf24) => {
     if (!sceneRef.current) return;
     const lineGeo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
-      direction.clone().multiplyScalar(4.5)
+      direction.clone().multiplyScalar(5.5)
     ]);
     const lineMat = new THREE.LineBasicMaterial({
-      color: 0xfbbf24,
-      linewidth: 2,
+      color: colorHex,
+      linewidth: 3,
       transparent: true,
       opacity: 0.95
     });
@@ -363,14 +386,14 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
     tracersRef.current.push({
       line,
       dir: direction.clone().normalize(),
-      speed: 420,
+      speed: colorHex === 0x38bdf8 ? 850 : 420,
       distTraveled: 0,
       maxDist
     });
   }, []);
 
   const triggerReload = useCallback(() => {
-    if (isReloading || (currentWeapon !== 'SHOTGUN' && currentWeapon !== 'NET_GUN')) return;
+    if (isReloading || currentWeapon === 'RF_JAMMER') return;
     setIsReloading(true);
     reloadTimerRef.current = 1.3;
     reloadDurationRef.current = 1.3;
@@ -380,12 +403,14 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
       setWeapons((prev) => ({
         ...prev,
         SHOTGUN: { ...prev.SHOTGUN, ammo: 8 },
-        NET_GUN: { ...prev.NET_GUN, ammo: 3 }
+        NET_GUN: { ...prev.NET_GUN, ammo: 3 },
+        SNIPER: { ...prev.SNIPER, ammo: 5 }
       }));
       setIsReloading(false);
       setReloadProgress(0);
     }, 1300);
   }, [isReloading, currentWeapon]);
+
 
   // Update Three.js lighting & sky dynamically when theme changes
   useEffect(() => {
@@ -517,11 +542,25 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
     };
     window.addEventListener('mousemove', handleMouseMove);
 
+    // First-Person Player Movement key listeners
+    const handleKeyDownMovement = (e: KeyboardEvent) => {
+      keysPressedRef.current[e.code] = true;
+      keysPressedRef.current[e.key.toLowerCase()] = true;
+      spatialAudio.init();
+    };
+    const handleKeyUpMovement = (e: KeyboardEvent) => {
+      keysPressedRef.current[e.code] = false;
+      keysPressedRef.current[e.key.toLowerCase()] = false;
+    };
+    window.addEventListener('keydown', handleKeyDownMovement);
+    window.addEventListener('keyup', handleKeyUpMovement);
+
     // Shooting and Scope mouse handlers
     const handleMouseDown = (e: MouseEvent) => {
       isMouseDown = true;
       lastMouseX = e.clientX;
       lastMouseY = e.clientY;
+      spatialAudio.init();
 
       if (e.button === 0) {
         // Left click: Fire / Jam
@@ -582,10 +621,86 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
       camera.rotation.y = yaw;
       camera.rotation.x = pitch;
 
-      // 1. Smooth Optical Scope FOV transition (ADS Zoom: 24° vs Hip: 60°)
-      const targetFov = isScopedRef.current ? 24 : 60;
+      // 1. First-Person Tactical Movement (WASD, Sprint, Jump, Crouch)
+      const keys = keysPressedRef.current;
+      const isSprinting = !!(keys['ShiftLeft'] || keys['ShiftRight'] || keys['shift']);
+      const isCrouching = !!(keys['KeyC'] || keys['c']);
+
+      const forwardX = -Math.sin(yaw);
+      const forwardZ = -Math.cos(yaw);
+      const rightX = Math.cos(yaw);
+      const rightZ = -Math.sin(yaw);
+
+      let moveX = 0;
+      let moveZ = 0;
+      if (keys['KeyW'] || keys['w'] || keys['ArrowUp']) {
+        moveX += forwardX;
+        moveZ += forwardZ;
+      }
+      if (keys['KeyS'] || keys['s'] || keys['ArrowDown']) {
+        moveX -= forwardX;
+        moveZ -= forwardZ;
+      }
+      if (keys['KeyD'] || keys['d'] || keys['ArrowRight']) {
+        moveX += rightX;
+        moveZ += rightZ;
+      }
+      if (keys['KeyA'] || keys['a'] || keys['ArrowLeft']) {
+        moveX -= rightX;
+        moveZ -= rightZ;
+      }
+
+      const moveLen = Math.hypot(moveX, moveZ);
+      const isMoving = moveLen > 0.01;
+      const moveSpeed = isSprinting ? 13.5 : isCrouching ? 4.0 : (isScopedRef.current ? 3.5 : 7.8);
+
+      if (isMoving) {
+        moveX = (moveX / moveLen) * moveSpeed;
+        moveZ = (moveZ / moveLen) * moveSpeed;
+        playerVelRef.current.x += (moveX - playerVelRef.current.x) * Math.min(1, dt * 10);
+        playerVelRef.current.z += (moveZ - playerVelRef.current.z) * Math.min(1, dt * 10);
+
+        walkCycleRef.current += dt * (isSprinting ? 14 : 9);
+        spatialAudio.playFootstep(isSprinting);
+      } else {
+        playerVelRef.current.x *= Math.max(0, 1 - dt * 12);
+        playerVelRef.current.z *= Math.max(0, 1 - dt * 12);
+      }
+
+      // Jump and vertical movement physics
+      const baseHeight = isCrouching ? 14.85 : 15.65;
+      if ((keys['Space'] || keys['space']) && isGroundedRef.current && currentWeaponRef.current !== 'RF_JAMMER') {
+        jumpVelYRef.current = 7.5;
+        isGroundedRef.current = false;
+      }
+
+      if (!isGroundedRef.current) {
+        jumpVelYRef.current -= 22.0 * dt;
+        camera.position.y += jumpVelYRef.current * dt;
+        if (camera.position.y <= baseHeight) {
+          camera.position.y = baseHeight;
+          jumpVelYRef.current = 0;
+          isGroundedRef.current = true;
+          spatialAudio.playFootstep(false);
+        }
+      } else {
+        const headBob = isMoving ? Math.sin(walkCycleRef.current) * (isSprinting ? 0.08 : 0.04) : 0;
+        camera.position.y = baseHeight + headBob;
+      }
+
+      camera.position.x += playerVelRef.current.x * dt;
+      camera.position.z += playerVelRef.current.z * dt;
+
+      // Restrict within rooftop outpost tactical boundary
+      camera.position.x = Math.max(-55, Math.min(55, camera.position.x));
+      camera.position.z = Math.max(-42, Math.min(52, camera.position.z));
+
+      // 2. Smooth Optical Scope FOV transition (Sniper: 10° | Shotgun/Rifle: 24° vs Hip: 60°)
+      const scopedFov = currentWeaponRef.current === 'SNIPER' ? 10 : 24;
+      const targetFov = isScopedRef.current ? scopedFov : 60;
       camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 16);
       camera.updateProjectionMatrix();
+
 
       // 2. Animate FPS Weapon ADS Center Alignment, Reload Drop & Recoil
       const hipPos = new THREE.Vector3(0.18, -0.16, -0.42);
@@ -861,11 +976,14 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
     return () => {
       cancelAnimationFrame(frameId);
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('keydown', handleKeyDownMovement);
+      window.removeEventListener('keyup', handleKeyUpMovement);
       canvas.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
       resizeObserver.disconnect();
       renderer.dispose();
     };
+
   }, [scenario]);
 
   // Draw 2D RF Heatmap matching image with city skyline underneath
@@ -1133,8 +1251,86 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
       if (newAmmo === 0) {
         triggerReload();
       }
+    } else if (currentWeapon === 'SNIPER') {
+      if (weapons.SNIPER.ammo <= 0) {
+        triggerReload();
+        return;
+      }
+      shotsFiredRef.current += 1;
+      spatialAudio.playSniper();
+
+      // Heavy sniper kickback recoil
+      recoilOffsetRef.current = 0.24;
+      recoilRotRef.current = 0.20;
+
+      // Cyan high-velocity supersonic tracer
+      spawnBulletTracer(muzzleWorldPos, forward, 850, 0x38bdf8);
+
+      ballisticsRef.current.fireSniper(muzzleWorldPos, forward);
+      const newAmmo = Math.max(0, weapons.SNIPER.ammo - 1);
+      setWeapons((prev) => ({
+        ...prev,
+        SNIPER: { ...prev.SNIPER, ammo: newAmmo }
+      }));
+
+      // High precision sniper hit registration
+      const matched = droneCandidates.filter((item) => {
+        if (!item.isFront || item.proj < 1 || item.proj > 850) return false;
+        const maxPixel = isScopedRef.current ? 175 : 55;
+        const max3d = Math.max(4.5, item.proj * 0.05);
+        return item.pixelDist <= maxPixel || item.distToLine <= max3d;
+      });
+
+      matched.sort((a, b) => a.pixelDist - b.pixelDist);
+
+      if (matched.length > 0) {
+        const target = matched[0];
+        const drone = target.drone;
+
+        drone.health = 0;
+        drone.state = 'FALLING';
+        drone.velocity = new THREE.Vector3((Math.random() - 0.5) * 8, -14, (Math.random() - 0.5) * 8);
+        drone.angularVelocity = new THREE.Vector3(
+          (Math.random() - 0.5) * 24,
+          (Math.random() - 0.5) * 16,
+          (Math.random() - 0.5) * 24
+        );
+        shotsHitRef.current += 1;
+        setLastHitConfirmation({
+          droneName: drone.name,
+          weapon: 'C-UAS Sniper',
+          timestamp: Date.now()
+        });
+
+        setHitMarkerActive(true);
+        setTimeout(() => setHitMarkerActive(false), 260);
+        spatialAudio.playHitConfirmationSound();
+        spatialAudio.playDroneFallingSound();
+        spawnExplosion(drone.position);
+
+        const popId = `pop-${Date.now()}-${Math.random()}`;
+        setFloatingDamage((prev) => [
+          ...prev,
+          {
+            id: popId,
+            text: '-100 SNIPER CRIT',
+            x: target.sx,
+            y: target.sy - 24,
+            isCrit: true
+          }
+        ]);
+        setTimeout(() => setFloatingDamage((prev) => prev.filter((p) => p.id !== popId)), 850);
+
+        addEvent('DRONE_HIT', `${drone.name} annihilated via .50 C-UAS Anti-Materiel Sniper!`, drone.id, drone.type);
+        setDronesList([...dronesRef.current]);
+      }
+
+      if (newAmmo === 0) {
+        triggerReload();
+      }
     }
   };
+
 
   const handleStartJammer = () => {
     setIsJammingActive(true);
@@ -1156,9 +1352,10 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
   // Keyboard shortcut listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === '1') setCurrentWeapon('RF_JAMMER');
-      if (e.key === '2') setCurrentWeapon('SHOTGUN');
-      if (e.key === '3') setCurrentWeapon('NET_GUN');
+      if (e.key === '1') setCurrentWeapon('SHOTGUN');
+      if (e.key === '2') setCurrentWeapon('NET_GUN');
+      if (e.key === '3') setCurrentWeapon('SNIPER');
+      if (e.key === '4') setCurrentWeapon('RF_JAMMER');
       if (e.key === 'r' || e.key === 'R') {
         triggerReload();
       }
@@ -1167,16 +1364,18 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
         setIsScoped(isScopedRef.current);
         spatialAudio.playScopeSound(isScopedRef.current);
       }
-      if (e.key === ' ') {
+      if (e.key === 'f' || e.key === 'F' || (e.key === ' ' && currentWeapon === 'RF_JAMMER')) {
         if (currentWeapon === 'RF_JAMMER') {
           handleStartJammer();
-        } else {
-          handleFireWeapon();
         }
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === ' ') handleStopJammer();
+      if (e.key === 'f' || e.key === 'F' || e.key === ' ') {
+        if (currentWeapon === 'RF_JAMMER') {
+          handleStopJammer();
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -1185,6 +1384,7 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [currentWeapon, weapons, isReloading, triggerReload]);
+
 
   const handleCompleteMission = () => {
     const result: SessionResult = {
@@ -1322,23 +1522,44 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
                 }`} />
 
                 {/* Optic Telemetry & Rangefinder Data */}
-                <div className="absolute bottom-14 flex items-center gap-3 px-3 py-1 rounded bg-black/60 border border-emerald-500/40 text-[10px] font-mono text-emerald-400 font-bold backdrop-blur-sm">
-                  <span>MAG: 2.5X</span>
+                <div className="absolute bottom-14 flex items-center gap-3 px-3 py-1 rounded bg-black/70 border border-emerald-500/40 text-[10px] font-mono text-emerald-400 font-bold backdrop-blur-sm shadow-md">
+                  <span>{currentWeapon === 'SNIPER' ? 'MAG: 10.0X MIL-DOT' : 'MAG: 2.5X'}</span>
                   <span>|</span>
-                  <span className={isAimMatched ? 'text-red-400 font-bold' : ''}>
-                    {isAimMatched ? 'LOCK: ON TARGET' : 'ELEV: +0.2 MIL'}
+                  <span className={isAimMatched ? 'text-red-400 font-bold animate-pulse' : ''}>
+                    {isAimMatched ? 'LOCK: ON TARGET' : currentWeapon === 'SNIPER' ? 'RANGE: ~280M' : 'ELEV: +0.2 MIL'}
                   </span>
                   <span>|</span>
-                  <span>WIND: 3.2 KT</span>
+                  <span>{currentWeapon === 'SNIPER' ? 'CAL: .50 BMG AP' : 'WIND: 3.2 KT'}</span>
                 </div>
               </div>
 
               {/* Top Scope Banner */}
-              <div className="absolute top-14 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-[11px] font-mono font-bold text-emerald-300 tracking-wider">
-                {isAimMatched ? 'TARGET LOCKED - READY TO ENGAGE' : 'TACTICAL SCOPE ADS ACTIVE (RIGHT CLICK OR \'Z\' TO EXIT)'}
+              <div className="absolute top-14 px-4 py-1.5 rounded-full bg-slate-950/85 border border-emerald-500/50 text-[11px] font-mono font-bold text-emerald-300 tracking-wider shadow-lg backdrop-blur-md">
+                {currentWeapon === 'SNIPER'
+                  ? (isAimMatched ? 'TARGET LOCKED IN SNIPER SIGHTS - FIRE WITH LMB' : 'LONG-RANGE C-UAS SNIPER OPTIC [10X] (R-CLICK OR \'Z\' TO EXIT)')
+                  : (isAimMatched ? 'TARGET LOCKED - READY TO ENGAGE' : 'TACTICAL SCOPE ADS ACTIVE (RIGHT CLICK OR \'Z\' TO EXIT)')}
               </div>
             </div>
           )}
+
+          {/* Top-Left Tactical Movement & Weapon Hotkey HUD Helper */}
+          <div className="absolute top-3 left-3 z-10 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/80 dark:bg-[#0c1524]/90 backdrop-blur-md border border-slate-700/80 shadow-md text-[11px] font-mono text-slate-300 pointer-events-none">
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">WASD</span>
+            <span className="text-slate-400">Move</span>
+            <span className="text-slate-600">|</span>
+            <span className="px-1.5 py-0.5 rounded bg-white/10 text-white font-bold">Shift</span>
+            <span className="text-slate-400">Sprint</span>
+            <span className="text-slate-600">|</span>
+            <span className="px-1.5 py-0.5 rounded bg-white/10 text-white font-bold">Space</span>
+            <span className="text-slate-400">Jump</span>
+            <span className="text-slate-600">|</span>
+            <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 font-bold border border-sky-500/30">RMB</span>
+            <span className="text-slate-400">Scope</span>
+            <span className="text-slate-600">|</span>
+            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">[1-4]</span>
+            <span className="text-slate-400">Weapons</span>
+          </div>
+
 
           {/* Normal Hipfire Crosshair when NOT scoped */}
           {!isScoped && (
@@ -1527,6 +1748,49 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
 
           {/* Bottom-Center Countermeasure Arsenal Dock inside Viewport */}
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 p-1.5 rounded-2xl bg-white/95 dark:bg-[#0c1524]/95 backdrop-blur-md border border-slate-200 dark:border-slate-700/80 shadow-lg text-xs font-sans">
+            {/* Weapon 1: Tactical Shotgun (Default Active) */}
+            <button
+              onClick={() => setCurrentWeapon('SHOTGUN')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer font-bold ${
+                currentWeapon === 'SHOTGUN'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              title="Tactical Shotgun [1]"
+            >
+              <Crosshair className="w-4 h-4" />
+              <span>Shotgun [1]</span>
+            </button>
+
+            {/* Weapon 2: Net Trap Gun */}
+            <button
+              onClick={() => setCurrentWeapon('NET_GUN')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer font-bold ${
+                currentWeapon === 'NET_GUN'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              title="Net Trap Gun [2]"
+            >
+              <Target className="w-4 h-4" />
+              <span>Net Gun [2]</span>
+            </button>
+
+            {/* Weapon 3: C-UAS Anti-Materiel Sniper Rifle */}
+            <button
+              onClick={() => setCurrentWeapon('SNIPER')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer font-bold ${
+                currentWeapon === 'SNIPER'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              title="C-UAS Sniper Rifle [3]"
+            >
+              <Shield className="w-4 h-4" />
+              <span>Sniper [3]</span>
+            </button>
+
+            {/* Weapon 4: Directed RF Jammer */}
             <button
               onClick={() => setCurrentWeapon('RF_JAMMER')}
               onMouseDown={handleStartJammer}
@@ -1536,39 +1800,10 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
+              title="Directed RF Jammer [4] - Hold [F] or Space to Jam"
             >
               <Radio className="w-4 h-4" />
-              <span>RF Jammer</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setCurrentWeapon('SHOTGUN');
-                handleFireWeapon();
-              }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer font-bold ${
-                currentWeapon === 'SHOTGUN'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Crosshair className="w-4 h-4" />
-              <span>Shotgun</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setCurrentWeapon('NET_GUN');
-                handleFireWeapon();
-              }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer font-bold ${
-                currentWeapon === 'NET_GUN'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Target className="w-4 h-4" />
-              <span>Net Gun</span>
+              <span>RF Jammer [4]</span>
             </button>
 
             {/* Scope ADS Toggle Button */}
@@ -1592,7 +1827,7 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
             {/* Reload Button */}
             <button
               onClick={triggerReload}
-              disabled={isReloading || (currentWeapon !== 'SHOTGUN' && currentWeapon !== 'NET_GUN')}
+              disabled={isReloading || currentWeapon === 'RF_JAMMER'}
               className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl transition-all font-bold ${
                 isReloading
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 cursor-not-allowed'
@@ -1612,6 +1847,8 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
                     ? weapons.SHOTGUN.ammo
                     : currentWeapon === 'NET_GUN'
                     ? weapons.NET_GUN.ammo
+                    : currentWeapon === 'SNIPER'
+                    ? weapons.SNIPER.ammo
                     : weapons.RF_JAMMER.ammo}
                 </span>
                 <span className="text-slate-400">/</span>
@@ -1620,18 +1857,24 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
                     ? weapons.SHOTGUN.maxAmmo
                     : currentWeapon === 'NET_GUN'
                     ? weapons.NET_GUN.maxAmmo
+                    : currentWeapon === 'SNIPER'
+                    ? weapons.SNIPER.maxAmmo
                     : weapons.RF_JAMMER.maxAmmo}
                 </span>
               </div>
               <div className="w-12 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
                 <div 
-                  className="h-full bg-emerald-500 rounded-full transition-all"
+                  className={`h-full rounded-full transition-all ${
+                    currentWeapon === 'SNIPER' ? 'bg-sky-500' : currentWeapon === 'SHOTGUN' ? 'bg-amber-500' : 'bg-emerald-500'
+                  }`}
                   style={{
                     width: `${(
                       (currentWeapon === 'SHOTGUN'
                         ? weapons.SHOTGUN.ammo / weapons.SHOTGUN.maxAmmo
                         : currentWeapon === 'NET_GUN'
                         ? weapons.NET_GUN.ammo / weapons.NET_GUN.maxAmmo
+                        : currentWeapon === 'SNIPER'
+                        ? weapons.SNIPER.ammo / weapons.SNIPER.maxAmmo
                         : weapons.RF_JAMMER.ammo / weapons.RF_JAMMER.maxAmmo) * 100
                     )}%`
                   }}
@@ -1639,6 +1882,7 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
               </div>
             </div>
           </div>
+
         </div>
 
         {/* Right 4-Panel Multi-Sensor Grid matching image */}

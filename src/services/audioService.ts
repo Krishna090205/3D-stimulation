@@ -6,112 +6,171 @@
 class SpatialAudioEngine {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
-  private droneNodes: Map<string, { osc: OscillatorNode; filter: BiquadFilterNode; panner: PannerNode; gain: GainNode }> = new Map();
+  private droneNodes: Map<
+    string,
+    {
+      osc1: OscillatorNode;
+      osc2: OscillatorNode;
+      filter: BiquadFilterNode;
+      panner: PannerNode;
+      gain: GainNode;
+    }
+  > = new Map();
   private jammerOsc: OscillatorNode | null = null;
   private jammerGain: GainNode | null = null;
+  private lastFootstepTime: number = 0;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      const unlockAudio = () => {
+        this.init();
+        ['click', 'keydown', 'mousedown', 'touchstart'].forEach((ev) => {
+          window.removeEventListener(ev, unlockAudio);
+        });
+      };
+      ['click', 'keydown', 'mousedown', 'touchstart'].forEach((ev) => {
+        window.addEventListener(ev, unlockAudio, { passive: true });
+      });
+    }
+  }
 
   public init() {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      this.ctx = new AudioCtx();
+      if (AudioCtx) {
+        this.ctx = new AudioCtx();
+      }
     }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
     }
   }
 
-  public setListener(position: { x: number; y: number; z: number }, forward: { x: number; y: number; z: number }, up = { x: 0, y: 1, z: 0 }) {
+  public setListener(
+    position: { x: number; y: number; z: number },
+    forward: { x: number; y: number; z: number },
+    up = { x: 0, y: 1, z: 0 }
+  ) {
+    this.init();
     if (!this.ctx) return;
     const listener = this.ctx.listener;
+    const t = this.ctx.currentTime;
     if (listener.positionX) {
-      listener.positionX.value = position.x;
-      listener.positionY.value = position.y;
-      listener.positionZ.value = position.z;
-      listener.forwardX.value = forward.x;
-      listener.forwardY.value = forward.y;
-      listener.forwardZ.value = forward.z;
-      listener.upX.value = up.x;
-      listener.upY.value = up.y;
-      listener.upZ.value = up.z;
+      listener.positionX.setTargetAtTime(position.x, t, 0.05);
+      listener.positionY.setTargetAtTime(position.y, t, 0.05);
+      listener.positionZ.setTargetAtTime(position.z, t, 0.05);
+      listener.forwardX.setTargetAtTime(forward.x, t, 0.05);
+      listener.forwardY.setTargetAtTime(forward.y, t, 0.05);
+      listener.forwardZ.setTargetAtTime(forward.z, t, 0.05);
+      listener.upX.setTargetAtTime(up.x, t, 0.05);
+      listener.upY.setTargetAtTime(up.y, t, 0.05);
+      listener.upZ.setTargetAtTime(up.z, t, 0.05);
     } else {
-      // Fallback for older browsers
+      // Fallback for older Web Audio specifications
       listener.setPosition(position.x, position.y, position.z);
       listener.setOrientation(forward.x, forward.y, forward.z, up.x, up.y, up.z);
     }
   }
 
   /**
-   * Updates or creates a 3D HRTF spatial sound source for a specific drone
+   * Updates or creates a 3D HRTF spatial sound source for a specific drone so the player
+   * can pinpoint the drone's position in 3D space by ear.
    */
-  public updateDroneAudio(id: string, position: { x: number; y: number; z: number }, velocityMagnitude: number, isJammed: boolean, droneType: string) {
+  public updateDroneAudio(
+    id: string,
+    position: { x: number; y: number; z: number },
+    velocityMagnitude: number,
+    isJammed: boolean,
+    droneType: string
+  ) {
+    this.init();
     if (!this.ctx || this.isMuted) return;
 
     let node = this.droneNodes.get(id);
     if (!node) {
       try {
-        const osc = this.ctx.createOscillator();
+        const osc1 = this.ctx.createOscillator();
+        const osc2 = this.ctx.createOscillator();
         const filter = this.ctx.createBiquadFilter();
         const panner = this.ctx.createPanner();
         const gain = this.ctx.createGain();
 
-        // Configure HRTF spatial panner
+        // Configure HRTF spatial panner for realistic 3D localization
         panner.panningModel = 'HRTF';
         panner.distanceModel = 'inverse';
-        panner.refDistance = 15;
-        panner.maxDistance = 600;
-        panner.rolloffFactor = 1.2;
+        panner.refDistance = 12; // Sound starts decaying past 12m
+        panner.maxDistance = 500; // Audible up to 500m
+        panner.rolloffFactor = 1.35;
         panner.coneInnerAngle = 360;
 
-        // Base frequency varies by drone type
-        let baseFreq = 580; // Standard commercial DJI quad
-        if (droneType === 'FPV_KAMIKAZE') baseFreq = 880; // High screaming pitch
-        if (droneType === 'MILITARY_FIXED_WING') baseFreq = 340; // Low jet/pusher prop hum
-        if (droneType === 'SWARM_ASSAULT') baseFreq = 720;
-        if (droneType === 'MICRO_SURVEILLANCE') baseFreq = 950;
+        // Base frequency varies by drone engine profile
+        let baseFreq = 540; // DJI Mavic quadcopter hum
+        if (droneType === 'FPV_KAMIKAZE') baseFreq = 920; // High-rpm scream
+        if (droneType === 'MILITARY_FIXED_WING') baseFreq = 310; // Low pusher-prop rumble
+        if (droneType === 'SWARM_ASSAULT') baseFreq = 740;
+        if (droneType === 'MICRO_SURVEILLANCE') baseFreq = 1050;
 
-        osc.type = droneType === 'MILITARY_FIXED_WING' ? 'sawtooth' : 'triangle';
-        osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
+        osc1.type = droneType === 'MILITARY_FIXED_WING' ? 'sawtooth' : 'triangle';
+        osc1.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
+
+        // Second oscillator: blade passing frequency overtone
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(baseFreq * 2.05, this.ctx.currentTime);
+
+        const osc2Gain = this.ctx.createGain();
+        osc2Gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+        osc2.connect(osc2Gain);
 
         filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(baseFreq * 1.5, this.ctx.currentTime);
-        filter.Q.setValueAtTime(3.0, this.ctx.currentTime);
+        filter.frequency.setValueAtTime(baseFreq * 1.6, this.ctx.currentTime);
+        filter.Q.setValueAtTime(2.2, this.ctx.currentTime);
 
-        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        // Audible and clear baseline volume
+        gain.gain.setValueAtTime(0.24, this.ctx.currentTime);
 
-        osc.connect(filter);
+        osc1.connect(filter);
+        osc2Gain.connect(filter);
         filter.connect(panner);
         panner.connect(gain);
         gain.connect(this.ctx.destination);
 
-        osc.start();
+        osc1.start();
+        osc2.start();
 
-        node = { osc, filter, panner, gain };
+        node = { osc1, osc2, filter, panner, gain };
         this.droneNodes.set(id, node);
-      } catch (e) {
+      } catch {
         return;
       }
     }
 
-    // Update 3D HRTF position
+    // Update 3D HRTF coordinates in real time
     const t = this.ctx.currentTime;
     if (node.panner.positionX) {
-      node.panner.positionX.setTargetAtTime(position.x, t, 0.05);
-      node.panner.positionY.setTargetAtTime(position.y, t, 0.05);
-      node.panner.positionZ.setTargetAtTime(position.z, t, 0.05);
+      node.panner.positionX.setTargetAtTime(position.x, t, 0.04);
+      node.panner.positionY.setTargetAtTime(position.y, t, 0.04);
+      node.panner.positionZ.setTargetAtTime(position.z, t, 0.04);
     } else {
       node.panner.setPosition(position.x, position.y, position.z);
     }
 
-    // RPM pitch modulation & Doppler based on speed
-    const baseFreq = droneType === 'FPV_KAMIKAZE' ? 880 : 580;
-    const speedPitch = isJammed ? 200 : baseFreq + velocityMagnitude * 6;
-    node.osc.frequency.setTargetAtTime(speedPitch, t, 0.1);
+    // RPM pitch modulation & Doppler shift based on drone velocity
+    let baseFreq = 540;
+    if (droneType === 'FPV_KAMIKAZE') baseFreq = 920;
+    if (droneType === 'MILITARY_FIXED_WING') baseFreq = 310;
+    if (droneType === 'SWARM_ASSAULT') baseFreq = 740;
+    if (droneType === 'MICRO_SURVEILLANCE') baseFreq = 1050;
 
-    // Stutter sound if jammed
+    const speedPitch = isJammed ? 160 : baseFreq + velocityMagnitude * 5.5;
+    node.osc1.frequency.setTargetAtTime(speedPitch, t, 0.08);
+    node.osc2.frequency.setTargetAtTime(speedPitch * 2.05, t, 0.08);
+    node.filter.frequency.setTargetAtTime(speedPitch * 1.5, t, 0.08);
+
+    // Stutter and sputter sound if jammed
     if (isJammed) {
-      node.gain.gain.setTargetAtTime(Math.random() > 0.4 ? 0.03 : 0.005, t, 0.05);
+      node.gain.gain.setTargetAtTime(Math.random() > 0.4 ? 0.08 : 0.01, t, 0.04);
     } else {
-      node.gain.gain.setTargetAtTime(0.08, t, 0.1);
+      node.gain.gain.setTargetAtTime(0.24, t, 0.08);
     }
   }
 
@@ -122,14 +181,17 @@ class SpatialAudioEngine {
         node.gain.gain.setTargetAtTime(0, this.ctx?.currentTime || 0, 0.05);
         setTimeout(() => {
           try {
-            node.osc.stop();
-            node.osc.disconnect();
-          } catch (e) {}
+            node.osc1.stop();
+            node.osc1.disconnect();
+            node.osc2.stop();
+            node.osc2.disconnect();
+          } catch {}
         }, 100);
-      } catch (e) {}
+      } catch {}
       this.droneNodes.delete(id);
     }
   }
+
 
   public clearAllDrones() {
     this.droneNodes.forEach((_, id) => this.removeDroneAudio(id));
@@ -183,8 +245,115 @@ class SpatialAudioEngine {
   }
 
   /**
+   * Sound effect: High-Caliber Anti-Materiel C-UAS Sniper Rifle
+   * Produces a sharp supersonic bullet snap, concussive bass blast, and reverberant roll.
+   */
+  public playSniper() {
+    this.init();
+    if (!this.ctx || this.isMuted) return;
+    const t = this.ctx.currentTime;
+
+    // 1. Supersonic crack / shockwave transient (sharp high band)
+    const crackSize = Math.floor(this.ctx.sampleRate * 0.12);
+    const crackBuffer = this.ctx.createBuffer(1, crackSize, this.ctx.sampleRate);
+    const crackData = crackBuffer.getChannelData(0);
+    for (let i = 0; i < crackSize; i++) {
+      crackData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.015));
+    }
+    const crackSource = this.ctx.createBufferSource();
+    crackSource.buffer = crackBuffer;
+
+    const crackFilter = this.ctx.createBiquadFilter();
+    crackFilter.type = 'highpass';
+    crackFilter.frequency.setValueAtTime(2400, t);
+
+    const crackGain = this.ctx.createGain();
+    crackGain.gain.setValueAtTime(0.75, t);
+    crackGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+
+    crackSource.connect(crackFilter);
+    crackFilter.connect(crackGain);
+    crackGain.connect(this.ctx.destination);
+
+    // 2. Concussive Sub-Bass Blast (50Hz - 25Hz punch)
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(95, t);
+    subOsc.frequency.exponentialRampToValueAtTime(28, t + 0.45);
+    subGain.gain.setValueAtTime(0.85, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.ctx.destination);
+
+    // 3. Reverberation echo across the open battlefield
+    const reverbSize = Math.floor(this.ctx.sampleRate * 0.85);
+    const reverbBuffer = this.ctx.createBuffer(1, reverbSize, this.ctx.sampleRate);
+    const reverbData = reverbBuffer.getChannelData(0);
+    for (let i = 0; i < reverbSize; i++) {
+      reverbData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.22));
+    }
+    const reverbSource = this.ctx.createBufferSource();
+    reverbSource.buffer = reverbBuffer;
+
+    const reverbFilter = this.ctx.createBiquadFilter();
+    reverbFilter.type = 'lowpass';
+    reverbFilter.frequency.setValueAtTime(650, t);
+    reverbFilter.frequency.exponentialRampToValueAtTime(90, t + 0.8);
+
+    const reverbGain = this.ctx.createGain();
+    reverbGain.gain.setValueAtTime(0.4, t);
+    reverbGain.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
+
+    reverbSource.connect(reverbFilter);
+    reverbFilter.connect(reverbGain);
+    reverbGain.connect(this.ctx.destination);
+
+    crackSource.start(t);
+    subOsc.start(t);
+    subOsc.stop(t + 0.52);
+    reverbSource.start(t);
+  }
+
+  /**
+   * Sound effect: Tactical combat boot footstep on concrete/gravel
+   */
+  public playFootstep(isSprinting: boolean = false) {
+    this.init();
+    if (!this.ctx || this.isMuted) return;
+    const now = performance.now();
+    const minInterval = isSprinting ? 280 : 420;
+    if (now - this.lastFootstepTime < minInterval) return;
+    this.lastFootstepTime = now;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(isSprinting ? 140 : 110, t);
+    osc.frequency.exponentialRampToValueAtTime(45, t + 0.08);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(400, t);
+
+    gain.gain.setValueAtTime(isSprinting ? 0.16 : 0.09, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.1);
+  }
+
+  /**
    * Sound effect: Pneumatic Net-Gun compressed gas discharge
    */
+
   public playNetGun() {
     if (!this.ctx || this.isMuted) return;
     const t = this.ctx.currentTime;

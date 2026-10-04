@@ -33,29 +33,7 @@ export const WeaponsPanel: React.FC<WeaponsPanelProps> = ({
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 select-none pointer-events-auto">
       {/* Main Counter-Drone Arsenal Dock */}
       <div className="glass-panel p-2.5 rounded-2xl border border-teal-500/40 flex items-center gap-3 shadow-2xl backdrop-blur-xl">
-        {/* Weapon 1: Directed RF Jammer */}
-        <button
-          onClick={() => onSelectWeapon('RF_JAMMER')}
-          className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition-all font-mono text-xs ${
-            currentWeapon === 'RF_JAMMER'
-              ? 'bg-emerald-600 text-white font-bold'
-              : 'glass-panel-subtle text-slate-300 hover:bg-white/10 border border-white/5'
-          }`}
-        >
-          <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-500/30">
-            <Radio className={`w-4 h-4 ${isJammingActive ? 'text-emerald-300 animate-spin' : 'text-emerald-400'}`} />
-          </div>
-          <div className="flex flex-col text-left">
-            <span className="font-bold tracking-wider">C-UAS RF JAMMER</span>
-            <span className="text-[10px] text-emerald-300/80">Directed GNSS/C2 Link</span>
-          </div>
-          <div className="ml-1 text-right">
-            <span className="text-[10px] text-slate-400">HOTKEY</span>
-            <div className="text-xs font-bold text-emerald-300">[1]</div>
-          </div>
-        </button>
-
-        {/* Weapon 2: Heavy Tactical Shotgun */}
+        {/* Weapon 1: Heavy Tactical Shotgun (Default Active Weapon) */}
         <button
           onClick={() => onSelectWeapon('SHOTGUN')}
           className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition-all font-mono text-xs ${
@@ -72,14 +50,12 @@ export const WeaponsPanel: React.FC<WeaponsPanelProps> = ({
             <span className="text-[10px] text-amber-300/80">Tungsten Buckshot</span>
           </div>
           <div className="ml-1 text-right">
-            <span className="text-[10px] text-slate-400">AMMO</span>
-            <div className="text-xs font-bold text-amber-300">
-              {weapons.SHOTGUN.ammo}/{weapons.SHOTGUN.maxAmmo}
-            </div>
+            <span className="text-[10px] text-slate-400">HOTKEY</span>
+            <div className="text-xs font-bold text-amber-300">[1] {weapons.SHOTGUN?.ammo}/{weapons.SHOTGUN?.maxAmmo}</div>
           </div>
         </button>
 
-        {/* Weapon 3: Pneumatic Net-Gun */}
+        {/* Weapon 2: Pneumatic Net-Gun Trap Launcher */}
         <button
           onClick={() => onSelectWeapon('NET_GUN')}
           className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition-all font-mono text-xs ${
@@ -92,17 +68,60 @@ export const WeaponsPanel: React.FC<WeaponsPanelProps> = ({
             <Network className="w-4 h-4 text-purple-400" />
           </div>
           <div className="flex flex-col text-left">
-            <span className="font-bold tracking-wider">NET-GUN LAUNCHER</span>
+            <span className="font-bold tracking-wider">NET TRAP GUN</span>
             <span className="text-[10px] text-purple-300/80">Rotor Entanglement</span>
           </div>
           <div className="ml-1 text-right">
-            <span className="text-[10px] text-slate-400">NETS</span>
-            <div className="text-xs font-bold text-purple-300">
-              {weapons.NET_GUN.ammo}/{weapons.NET_GUN.maxAmmo}
-            </div>
+            <span className="text-[10px] text-slate-400">HOTKEY</span>
+            <div className="text-xs font-bold text-purple-300">[2] {weapons.NET_GUN?.ammo}/{weapons.NET_GUN?.maxAmmo}</div>
+          </div>
+        </button>
+
+        {/* Weapon 3: Anti-Materiel Precision Sniper Rifle */}
+        <button
+          onClick={() => onSelectWeapon('SNIPER')}
+          className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition-all font-mono text-xs ${
+            currentWeapon === 'SNIPER'
+              ? 'bg-sky-600 text-white font-bold'
+              : 'glass-panel-subtle text-slate-300 hover:bg-white/10 border border-white/5'
+          }`}
+        >
+          <div className="p-2 rounded-lg bg-sky-950/80 border border-sky-500/30">
+            <Shield className="w-4 h-4 text-sky-400" />
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="font-bold tracking-wider">C-UAS SNIPER</span>
+            <span className="text-[10px] text-sky-300/80">Armor-Piercing Sabot</span>
+          </div>
+          <div className="ml-1 text-right">
+            <span className="text-[10px] text-slate-400">HOTKEY</span>
+            <div className="text-xs font-bold text-sky-300">[3] {weapons.SNIPER?.ammo}/{weapons.SNIPER?.maxAmmo}</div>
+          </div>
+        </button>
+
+        {/* Weapon 4: Directed RF Jammer */}
+        <button
+          onClick={() => onSelectWeapon('RF_JAMMER')}
+          className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition-all font-mono text-xs ${
+            currentWeapon === 'RF_JAMMER'
+              ? 'bg-emerald-600 text-white font-bold'
+              : 'glass-panel-subtle text-slate-300 hover:bg-white/10 border border-white/5'
+          }`}
+        >
+          <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-500/30">
+            <Radio className={`w-4 h-4 ${isJammingActive ? 'text-emerald-300 animate-spin' : 'text-emerald-400'}`} />
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="font-bold tracking-wider">RF JAMMER</span>
+            <span className="text-[10px] text-emerald-300/80">Directed GNSS/C2 Link</span>
+          </div>
+          <div className="ml-1 text-right">
+            <span className="text-[10px] text-slate-400">HOTKEY</span>
+            <div className="text-xs font-bold text-emerald-300">[4]</div>
           </div>
         </button>
       </div>
+
 
       {/* Dynamic Controls Sub-Bar for Selected Weapon */}
       <div className="glass-panel px-4 py-2 rounded-xl border border-emerald-500/30 flex items-center gap-4 text-xs font-mono">
