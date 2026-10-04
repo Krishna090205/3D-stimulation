@@ -134,10 +134,8 @@ export async function initDatabase() {
     );
   }
 
-  // Ensure default scenarios exist
-  const existingScenarios = await query('SELECT count(*) as cnt FROM scenarios');
-  if (!existingScenarios[0] || existingScenarios[0].cnt === 0) {
-    const defaultScenarios = [
+  // Seed / update default scenarios with distinct terrains
+  const defaultScenarios = [
       {
         id: 'scen-1',
         title: 'Urban Day',
@@ -219,8 +217,6 @@ export async function initDatabase() {
         ]
       );
     }
-  }
-
 
   saveDb();
   console.log('[SQLite DB] Initialized and synced to data/drone_trainer.db');
