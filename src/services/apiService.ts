@@ -1,6 +1,7 @@
 import { Scenario, SessionResult, SimulationEvent } from '../types/simulation';
 
-const API_BASE = '/api';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL;
+const API_BASE = rawBaseUrl ? `${(rawBaseUrl as string).replace(/\/$/, '')}/api` : '/api';
 
 // Fallback scenarios if server is unreachable
 export const DEFAULT_SCENARIOS: Scenario[] = [

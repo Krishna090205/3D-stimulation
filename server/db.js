@@ -6,12 +6,17 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbDir = path.resolve(__dirname, '..', 'data');
+const dbDir = process.env.DATABASE_DIR
+  ? path.resolve(process.env.DATABASE_DIR)
+  : path.resolve(__dirname, '..', 'data');
+
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const dbPath = path.join(dbDir, 'drone_trainer.db');
+const dbPath = process.env.DATABASE_PATH
+  ? path.resolve(process.env.DATABASE_PATH)
+  : path.join(dbDir, 'drone_trainer.db');
 
 let sqlDb = null;
 

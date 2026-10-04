@@ -3,10 +3,22 @@ import cors from 'cors';
 import crypto from 'crypto';
 import { query, queryOne, run, initDatabase } from './db.js';
 
+// Load environment variables if .env exists
+try {
+  if (process.loadEnvFile) {
+    process.loadEnvFile();
+  }
+} catch {
+  // .env file is optional in containerized/production environments where env vars are injected directly
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
-app.use(cors());
+app.use(cors({
+  origin: CORS_ORIGIN === '*' ? '*' : CORS_ORIGIN.split(',').map(s => s.trim())
+}));
 app.use(express.json({ limit: '20mb' }));
 
 // Active instructor overrides queue by sessionId
