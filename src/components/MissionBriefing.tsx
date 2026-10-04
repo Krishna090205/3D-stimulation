@@ -1,6 +1,6 @@
 import React from 'react';
 import { Scenario } from '../types/simulation';
-import { User, Clock, Compass, AlertTriangle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { User, Clock, Compass, Shield, Target, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 interface MissionBriefingProps {
@@ -18,6 +18,53 @@ export const MissionBriefing: React.FC<MissionBriefingProps> = ({
 }) => {
   const { isDark } = useTheme();
 
+  // Dynamic scenario photographic preview based on map type
+  const getScenarioImage = () => {
+    switch (scenario.terrain) {
+      case 'urban':
+        return 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&w=1200&q=80';
+      case 'urban_night':
+        return 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=80';
+      case 'rural':
+        return 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80';
+      case 'desert':
+        return 'https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=1200&q=80';
+      case 'compound':
+        return 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=1200&q=80';
+      default:
+        return 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=80';
+    }
+  };
+
+  const getEnvironmentLabel = () => {
+    switch (scenario.terrain) {
+      case 'urban':
+        return 'Urban Metropolitan / Clear Day';
+      case 'urban_night':
+        return 'Urban Metropolis / Midnight Operations';
+      case 'rural':
+        return 'Mountain Valley / Conifer Pine Forest';
+      case 'desert':
+        return 'Arid Desert / Forward Operating Base (FOB)';
+      case 'compound':
+        return 'Executive Compound / Presidential Helipad';
+      default:
+        return 'Urban Metropolitan Outpost';
+    }
+  };
+
+  const getThreatBadge = () => {
+    if (scenario.difficulty === 'EXPERT' || scenario.id === 'scen-4') {
+      return { text: 'Critical', bg: 'bg-red-500 text-white', letter: 'C' };
+    }
+    if (scenario.difficulty === 'HARD' || scenario.id === 'scen-2') {
+      return { text: 'High', bg: 'bg-red-500 text-white', letter: 'A' };
+    }
+    return { text: 'Standard', bg: 'bg-amber-500 text-white', letter: 'B' };
+  };
+
+  const threat = getThreatBadge();
+
   return (
     <div className="w-full h-full flex flex-col p-8 bg-slate-50 dark:bg-[#070d18] text-slate-900 dark:text-slate-100 overflow-y-auto select-none">
       {/* Top Header matching reference Screen 4 */}
@@ -30,9 +77,14 @@ export const MissionBriefing: React.FC<MissionBriefingProps> = ({
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
-            {scenario.title || 'Urban Night - Swarm Attack'}
-          </h1>
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+              {scenario.title || scenario.name}
+            </h1>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+              Mission ID: {scenario.id} • Tactical Deployment
+            </span>
+          </div>
         </div>
 
         {/* Top-Right User Avatar */}
@@ -41,20 +93,27 @@ export const MissionBriefing: React.FC<MissionBriefingProps> = ({
         </div>
       </div>
 
-      {/* Main Container matching Screen 4 layout */}
+      {/* Main Container */}
       <div className="flex flex-col gap-6 max-w-4xl">
         {/* Wide Hero Image Preview Card with glowing drones */}
         <div className="w-full h-64 md:h-72 rounded-3xl overflow-hidden shadow-lg border border-slate-200 dark:border-slate-800 relative bg-slate-900">
           <img
-            src="https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1200&q=80"
-            alt={scenario.title}
+            src={getScenarioImage()}
+            alt={scenario.title || scenario.name}
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent pointer-events-none" />
 
           {/* Drones in Sky Visual Markers */}
           <div className="absolute top-1/4 left-1/3 w-3 h-3 rounded-full bg-red-500 shadow-md shadow-red-500 animate-ping" />
-          <div className="absolute top-1/3 right-1/4 w-3 h-3 rounded-full bg-red-500 shadow-md shadow-red-500 animate-pulse" />
+          <div className="absolute top-1/3 right-1/4 w-3.5 h-3.5 rounded-full bg-red-500 shadow-md shadow-red-500 animate-pulse" />
+          <div className="absolute top-1/2 left-2/3 w-2.5 h-2.5 rounded-full bg-amber-400 shadow-md shadow-amber-400" />
+
+          {/* Location Badge on Image */}
+          <div className="absolute bottom-4 left-5 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-white text-xs font-semibold">
+            <Compass className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{getEnvironmentLabel()}</span>
+          </div>
         </div>
 
         {/* Details Section below image */}
@@ -66,10 +125,25 @@ export const MissionBriefing: React.FC<MissionBriefingProps> = ({
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Objective
+                Mission Objective
               </span>
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
-                Detect and neutralize unauthorized drones entering the protected urban area.
+                {scenario.description || 'Detect, track, and neutralize unauthorized hostile UAS vectors entering the defended sector.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Defended Asset row */}
+          <div className="flex items-start gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-sm">
+              <Shield className="w-3.5 h-3.5" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Critical Defended Asset
+              </span>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
+                {scenario.target_asset || 'Strategic Phased-Array C-UAS Outpost'}
               </p>
             </div>
           </div>
@@ -83,7 +157,7 @@ export const MissionBriefing: React.FC<MissionBriefingProps> = ({
               <div className="flex flex-col">
                 <span className="text-[11px] text-slate-400">Environment</span>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  {scenario.terrain === 'urban' ? 'Urban / Night' : scenario.terrain === 'rural' ? 'Rural / Open' : 'Urban / Day'}
+                  {getEnvironmentLabel()}
                 </span>
               </div>
             </div>
@@ -93,23 +167,23 @@ export const MissionBriefing: React.FC<MissionBriefingProps> = ({
                 <Clock className="w-4 h-4" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[11px] text-slate-400">Duration</span>
+                <span className="text-[11px] text-slate-400">Engagement Window</span>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  5 minutes
+                  {Math.round((scenario.duration_sec || 300) / 60)} Minutes ({scenario.time_of_day || 'DAY'})
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Threat Level row with red 'A' badge */}
+          {/* Threat Level row */}
           <div className="flex items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            <div className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
-              A
+            <div className={`w-6 h-6 rounded-full ${threat.bg} flex items-center justify-center font-bold text-xs shrink-0 shadow-sm`}>
+              {threat.letter}
             </div>
             <div className="flex flex-col">
-              <span className="text-[11px] text-slate-400">Threat Level</span>
+              <span className="text-[11px] text-slate-400">Threat Assessment</span>
               <span className="text-xs font-bold text-red-600 dark:text-red-400">
-                High
+                {threat.text} ({scenario.threat_count || 5} Incoming UAS Vectors)
               </span>
             </div>
           </div>

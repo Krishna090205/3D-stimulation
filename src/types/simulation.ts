@@ -43,7 +43,7 @@ export type SensorLayer = 'EO' | 'IR_WHITE_HOT' | 'IR_BLACK_HOT' | 'RF_HEATMAP';
 
 export type WeatherType = 'clear' | 'fog' | 'rain';
 export type TimeOfDay = 'day' | 'night';
-export type TerrainType = 'urban' | 'rural';
+export type TerrainType = 'urban' | 'urban_night' | 'rural' | 'desert' | 'compound';
 
 export interface Scenario {
   id: string;

@@ -3,50 +3,50 @@ import { Scenario, SessionResult, SimulationEvent } from '../types/simulation';
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const API_BASE = rawBaseUrl ? `${(rawBaseUrl as string).replace(/\/$/, '')}/api` : '/api';
 
-// Fallback scenarios if server is unreachable
+// Fallback scenarios matching the 5 distinct mission maps
 export const DEFAULT_SCENARIOS: Scenario[] = [
   {
     id: 'scen-1',
-    title: 'Forward Outpost Recon Intrusion',
-    description: 'Commercial DJI quadcopters conducting low-altitude ISR surveillance over tactical communications mast.',
+    title: 'Urban Day',
+    description: 'Daylight commercial quadcopter intrusion over metropolitan skyscraper canyons. High visibility kinetic engagement.',
     difficulty: 'Beginner',
-    terrain: 'rural',
+    terrain: 'urban',
     weather: 'clear',
     time_of_day: 'day',
-    drone_count: 2,
-    threat_types: ['DJI Mavic Pro', 'DJI Phantom 4'],
+    drone_count: 3,
+    threat_types: ['DJI Mavic Pro', 'Commercial Quadcopter'],
     target_asset: 'Tactical Communications Mast'
   },
   {
     id: 'scen-2',
-    title: 'High-Speed FPV Kamikaze Attack',
-    description: 'Dual high-velocity FPV quadcopters diving aggressively toward mobile command vehicle at erratic trajectories.',
+    title: 'Urban Night',
+    description: 'Nocturnal metropolis infiltration under illuminated skyscraper skyline and flashing beacons. Low ambient light conditions.',
     difficulty: 'Intermediate',
-    terrain: 'urban',
-    weather: 'clear',
-    time_of_day: 'day',
-    drone_count: 3,
-    threat_types: ['FPV Kamikaze Racer', 'FPV Heavy Lifter'],
-    target_asset: 'Mobile Command Vehicle'
-  },
-  {
-    id: 'scen-3',
-    title: 'Night Refinery Stealth Infiltration',
-    description: 'Long-range military fixed-wing stealth UAV cruising in low radar cross-section under dark skies.',
-    difficulty: 'Advanced',
-    terrain: 'urban',
+    terrain: 'urban_night',
     weather: 'clear',
     time_of_day: 'night',
-    drone_count: 3,
-    threat_types: ['Military Delta-Wing', 'Surveillance Micro-UAV'],
+    drone_count: 4,
+    threat_types: ['Military Delta-Wing', 'FPV Kamikaze Racer'],
     target_asset: 'Strategic Fuel Storage Tanks'
   },
   {
-    id: 'scen-4',
-    title: 'Coordinated Autonomous Swarm Raid',
-    description: 'Flock of 6 autonomous drones executing 3D Boids cohesion and evasive dispersion to saturate kinetic defenses.',
-    difficulty: 'Expert',
+    id: 'scen-3',
+    title: 'Rural Area',
+    description: 'Open mountain pine valley and tactical outpost revetment. Wide detection azimuth requiring long-range kinetic sniper fire.',
+    difficulty: 'Advanced',
     terrain: 'rural',
+    weather: 'clear',
+    time_of_day: 'day',
+    drone_count: 3,
+    threat_types: ['Surveillance Micro-UAV', 'DJI Phantom 4'],
+    target_asset: 'Forward Outpost Radar Station'
+  },
+  {
+    id: 'scen-4',
+    title: 'Swarm Attack',
+    description: 'High-density autonomous swarm assault over an arid desert forward operating base with fortified HESCO barriers.',
+    difficulty: 'Expert',
+    terrain: 'desert',
     weather: 'fog',
     time_of_day: 'day',
     drone_count: 6,
@@ -55,17 +55,18 @@ export const DEFAULT_SCENARIOS: Scenario[] = [
   },
   {
     id: 'scen-5',
-    title: 'Bad Weather Border Incursion',
-    description: 'Combined multi-vector assault under heavy rain and reduced sensor visibility. Requires thermal EO/IR and RF heatmap triangulation.',
+    title: 'VIP Protection',
+    description: 'Defend high-security executive government compound, transport motorcade, and airfield helipad from coordinated strikes.',
     difficulty: 'Elite',
-    terrain: 'urban',
-    weather: 'rain',
+    terrain: 'compound',
+    weather: 'clear',
     time_of_day: 'night',
     drone_count: 5,
-    threat_types: ['Military Delta-Wing', 'Autonomous Swarm Unit', 'FPV Kamikaze Racer'],
-    target_asset: 'Perimeter Defense Generator'
+    threat_types: ['FPV Heavy Lifter', 'Military Delta-Wing'],
+    target_asset: 'Executive Transport Helipad'
   }
 ];
+
 
 export async function fetchScenarios(): Promise<Scenario[]> {
   try {

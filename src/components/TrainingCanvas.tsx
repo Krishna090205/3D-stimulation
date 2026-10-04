@@ -223,6 +223,9 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
   const jumpVelYRef = useRef<number>(0);
   const isGroundedRef = useRef<boolean>(true);
   const walkCycleRef = useRef<number>(0);
+  const playerBaseHeightRef = useRef<number>(14);
+  const boundaryRadiusXRef = useRef<number>(22);
+  const boundaryRadiusZRef = useRef<number>(22);
 
 
   // Active Drones State
@@ -412,7 +415,7 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
   }, [isReloading, currentWeapon]);
 
 
-  // Update Three.js lighting & sky dynamically when theme changes
+  // Update Three.js lighting & sky dynamically when scenario terrain, time of day, or theme changes
   useEffect(() => {
     if (!sceneRef.current) return;
     const scene = sceneRef.current;
@@ -423,27 +426,60 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
     });
     lightsToRemove.forEach((l) => scene.remove(l));
 
-    if (theme === 'light') {
-      scene.background = new THREE.Color(0xbfe3f7); // Crisp bright daylight sky matching image
-      const ambient = new THREE.AmbientLight(0xffffff, 1.25);
-      const sun = new THREE.DirectionalLight(0xfffbeb, 1.9);
-      sun.position.set(120, 220, 100);
+    const terrain = scenario.terrain;
+    const timeOfDay = scenario.time_of_day;
+
+    if (terrain === 'urban_night' || timeOfDay === 'NIGHT') {
+      // Midnight Metropolis / Low-Visibility Night Operations
+      scene.background = new THREE.Color(0x040814);
+      const ambient = new THREE.AmbientLight(0x0c1527, 0.55);
+      const moon = new THREE.DirectionalLight(0x38bdf8, 0.85);
+      moon.position.set(70, 160, 90);
+      const spot = new THREE.SpotLight(0xffffff, 2.8, 260, Math.PI / 3.5, 0.45);
+      spot.position.set(0, 30, 0);
+      spot.target.position.set(0, 0, -40);
+      scene.add(ambient, moon, spot, spot.target);
+      scene.fog = new THREE.FogExp2(0x040814, 0.0035);
+    } else if (terrain === 'desert') {
+      // Arid Desert FOB - Swarm Attack in Golden Dust Haze
+      scene.background = new THREE.Color(0xf59e0b);
+      const ambient = new THREE.AmbientLight(0xfef3c7, 1.25);
+      const sun = new THREE.DirectionalLight(0xffedd5, 2.5);
+      sun.position.set(110, 240, 90);
       sun.castShadow = true;
       scene.add(ambient, sun);
-      scene.fog = new THREE.FogExp2(0xbfe3f7, 0.0015);
+      scene.fog = new THREE.FogExp2(0xd97706, 0.0025);
+    } else if (terrain === 'compound') {
+      // VIP Protection - Dusk Twilight Compound with Security Floodlights
+      scene.background = new THREE.Color(0x1e1b4b);
+      const ambient = new THREE.AmbientLight(0x312e81, 0.85);
+      const sunsetSun = new THREE.DirectionalLight(0xfb923c, 2.0);
+      sunsetSun.position.set(150, 100, 70);
+      const helipadSpot = new THREE.SpotLight(0xffffff, 3.2, 180, Math.PI / 4, 0.3);
+      helipadSpot.position.set(0, 25, -20);
+      helipadSpot.target.position.set(0, 0, -45);
+      scene.add(ambient, sunsetSun, helipadSpot, helipadSpot.target);
+      scene.fog = new THREE.FogExp2(0x1e1b4b, 0.0022);
+    } else if (terrain === 'rural') {
+      // Rural Area - Rolling Mountain Valley with Natural Daylight
+      scene.background = new THREE.Color(0x93c5fd);
+      const ambient = new THREE.AmbientLight(0xecfdf5, 1.3);
+      const sun = new THREE.DirectionalLight(0xfef08a, 2.0);
+      sun.position.set(130, 210, 110);
+      sun.castShadow = true;
+      scene.add(ambient, sun);
+      scene.fog = new THREE.FogExp2(0x93c5fd, 0.0018);
     } else {
-      scene.background = new THREE.Color(0x060f1e);
-      const ambient = new THREE.AmbientLight(0x0f172a, 0.5);
-      const moon = new THREE.DirectionalLight(0x38bdf8, 0.8);
-      moon.position.set(60, 150, 80);
-      scene.add(ambient, moon);
-      const spot = new THREE.SpotLight(0xffffff, 2.8, 220, Math.PI / 4, 0.4);
-      spot.position.set(0, 20, 0);
-      spot.target.position.set(40, 0, 40);
-      scene.add(spot, spot.target);
-      scene.fog = new THREE.FogExp2(0x060f1e, 0.004);
+      // Urban Day - Metropolis High-Rise Daylight
+      scene.background = new THREE.Color(0x7dd3fc);
+      const ambient = new THREE.AmbientLight(0xffffff, 1.35);
+      const sun = new THREE.DirectionalLight(0xfffbeb, 2.2);
+      sun.position.set(120, 230, 100);
+      sun.castShadow = true;
+      scene.add(ambient, sun);
+      scene.fog = new THREE.FogExp2(0x7dd3fc, 0.0012);
     }
-  }, [theme]);
+  }, [theme, scenario.terrain, scenario.time_of_day]);
 
   // Main Three.js Scene Setup
   useEffect(() => {
@@ -456,8 +492,6 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(60, width / height, 0.2, 1200);
-    // Player elevated on rooftop outpost overlooking city street
-    camera.position.set(0, 15.65, 5.0);
     cameraRef.current = camera;
     scene.add(camera);
 
@@ -473,8 +507,17 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
     camera.add(weaponModel.root);
     weaponMeshRef.current = weaponModel;
 
-    const { assetPosition } = buildEnvironment(scene, scenario.terrain, scenario.target_asset);
+    const { assetPosition, playerBaseHeight, playerEyeHeight, boundaryRadiusX, boundaryRadiusZ } = buildEnvironment(
+      scene,
+      scenario.terrain,
+      scenario.target_asset,
+      scenario
+    );
     targetAssetPosRef.current = assetPosition;
+    playerBaseHeightRef.current = playerBaseHeight;
+    boundaryRadiusXRef.current = boundaryRadiusX;
+    boundaryRadiusZRef.current = boundaryRadiusZ;
+    camera.position.set(0, playerEyeHeight, 5.0);
 
     // RF Jammer Conical Beam Visualizer Mesh
     const coneGeo = new THREE.ConeGeometry(24, 180, 16, 1, true);
@@ -668,7 +711,7 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
       }
 
       // Jump and vertical movement physics
-      const baseHeight = isCrouching ? 14.85 : 15.65;
+      const baseHeight = isCrouching ? (playerBaseHeightRef.current + 0.85) : (playerBaseHeightRef.current + 1.65);
       if ((keys['Space'] || keys['space']) && isGroundedRef.current && currentWeaponRef.current !== 'RF_JAMMER') {
         jumpVelYRef.current = 7.5;
         isGroundedRef.current = false;
@@ -691,9 +734,11 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
       camera.position.x += playerVelRef.current.x * dt;
       camera.position.z += playerVelRef.current.z * dt;
 
-      // Restrict within rooftop outpost tactical boundary
-      camera.position.x = Math.max(-55, Math.min(55, camera.position.x));
-      camera.position.z = Math.max(-42, Math.min(52, camera.position.z));
+      // Restrict within defensive base tactical boundary
+      const bX = boundaryRadiusXRef.current;
+      const bZ = boundaryRadiusZRef.current;
+      camera.position.x = Math.max(-bX, Math.min(bX, camera.position.x));
+      camera.position.z = Math.max(-bZ, Math.min(bZ, camera.position.z));
 
       // 2. Smooth Optical Scope FOV transition (Sniper: 10° | Shotgun/Rifle: 24° vs Hip: 60°)
       const scopedFov = currentWeaponRef.current === 'SNIPER' ? 10 : 24;
@@ -740,12 +785,13 @@ export const TrainingCanvas: React.FC<TrainingCanvasProps> = ({
       }
 
       // 4. Ground Crash Impact for Falling Drones
+      const crashFloorY = playerBaseHeightRef.current > 10 ? 1.2 : 0.6;
       dronesRef.current.forEach((drone) => {
-        if (drone.state === 'FALLING' && drone.position.y <= 1.2) {
+        if (drone.state === 'FALLING' && drone.position.y <= crashFloorY) {
           drone.state = 'DESTROYED';
           spawnExplosion(drone.position);
           spatialAudio.playExplosion();
-          addEvent('DRONE_NEUTRALIZED', `${drone.name} crashed into urban wreckage`, drone.id, drone.type);
+          addEvent('DRONE_NEUTRALIZED', `${drone.name} crashed into wreckage`, drone.id, drone.type);
         }
       });
 

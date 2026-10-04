@@ -89,46 +89,46 @@ export function initDatabase() {
   const defaultScenarios = [
     {
       id: 'scen-1',
-      title: 'Forward Outpost Recon Intrusion',
-      description: 'Single commercial DJI quadcopter conducting low-altitude ISR surveillance over command perimeter.',
+      title: 'Urban Day',
+      description: 'Daylight commercial quadcopter intrusion over metropolitan skyscraper canyons. High visibility kinetic engagement.',
       difficulty: 'Beginner',
-      terrain: 'rural',
+      terrain: 'urban',
       weather: 'clear',
       time_of_day: 'day',
-      drone_count: 2,
-      threat_types: JSON.stringify(['DJI Mavic Pro', 'DJI Phantom 4']),
+      drone_count: 3,
+      threat_types: JSON.stringify(['DJI Mavic Pro', 'Commercial Quadcopter']),
       target_asset: 'Tactical Communications Mast'
     },
     {
       id: 'scen-2',
-      title: 'High-Speed FPV Kamikaze Attack',
-      description: 'Dual high-velocity FPV quadcopters equipped with shaped explosive payloads diving rapidly at erratic angles.',
+      title: 'Urban Night',
+      description: 'Nocturnal metropolis infiltration under illuminated skyscraper skyline and flashing beacons. Low ambient light conditions.',
       difficulty: 'Intermediate',
-      terrain: 'urban',
-      weather: 'clear',
-      time_of_day: 'day',
-      drone_count: 3,
-      threat_types: JSON.stringify(['FPV Kamikaze Racer', 'FPV Heavy Lifter']),
-      target_asset: 'Mobile Command Vehicle'
-    },
-    {
-      id: 'scen-3',
-      title: 'Night Refinery Stealth Infiltration',
-      description: 'Long-range military fixed-wing reconnaissance drone flying low radar cross-section under cover of pitch darkness.',
-      difficulty: 'Advanced',
-      terrain: 'urban',
+      terrain: 'urban_night',
       weather: 'clear',
       time_of_day: 'night',
-      drone_count: 3,
-      threat_types: JSON.stringify(['Military Delta-Wing', 'Surveillance Micro-UAV']),
+      drone_count: 4,
+      threat_types: JSON.stringify(['Military Delta-Wing', 'FPV Kamikaze Racer']),
       target_asset: 'Strategic Fuel Storage Tanks'
     },
     {
-      id: 'scen-4',
-      title: 'Coordinated Autonomous Swarm Raid',
-      description: 'Flock of 6 autonomous drones executing Boids cohesion and scatter tactics to overwhelm kinetic defenses.',
-      difficulty: 'Expert',
+      id: 'scen-3',
+      title: 'Rural Area',
+      description: 'Open mountain pine valley and tactical outpost revetment. Wide detection azimuth requiring long-range kinetic sniper fire.',
+      difficulty: 'Advanced',
       terrain: 'rural',
+      weather: 'clear',
+      time_of_day: 'day',
+      drone_count: 3,
+      threat_types: JSON.stringify(['Surveillance Micro-UAV', 'DJI Phantom 4']),
+      target_asset: 'Forward Outpost Radar Station'
+    },
+    {
+      id: 'scen-4',
+      title: 'Swarm Attack',
+      description: 'High-density autonomous swarm assault over an arid desert forward operating base with fortified HESCO barriers.',
+      difficulty: 'Expert',
+      terrain: 'desert',
       weather: 'fog',
       time_of_day: 'day',
       drone_count: 6,
@@ -137,17 +137,18 @@ export function initDatabase() {
     },
     {
       id: 'scen-5',
-      title: 'Bad Weather Border Incursion',
-      description: 'Combined arms drone assault under heavy rain and reduced sensor visibility. Requires active thermal EO/IR & RF detection.',
+      title: 'VIP Protection',
+      description: 'Defend high-security executive government compound, transport motorcade, and airfield helipad from coordinated strikes.',
       difficulty: 'Elite',
-      terrain: 'urban',
-      weather: 'rain',
+      terrain: 'compound',
+      weather: 'clear',
       time_of_day: 'night',
       drone_count: 5,
-      threat_types: JSON.stringify(['Military Delta-Wing', 'Autonomous Swarm Unit', 'FPV Kamikaze Racer']),
-      target_asset: 'Perimeter Defense Generator'
+      threat_types: JSON.stringify(['FPV Heavy Lifter', 'Military Delta-Wing']),
+      target_asset: 'Executive Transport Helipad'
     }
   ];
+
 
   for (const scen of defaultScenarios) {
     scenarioStmt.run(
